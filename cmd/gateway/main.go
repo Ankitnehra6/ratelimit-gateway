@@ -57,7 +57,7 @@ func run(logger *slog.Logger) error {
 		ReadTimeout:  cfg.LimiterTimeout,
 		WriteTimeout: cfg.LimiterTimeout,
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	// Probe Redis once at startup so a misconfiguration surfaces here rather
 	// than as a flood of degraded requests later. A failure is logged, not
@@ -107,7 +107,7 @@ func run(logger *slog.Logger) error {
 	// throttled out of checking whether this instance is alive.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
+		_, _ = fmt.Fprintln(w, "ok")
 	})
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		checkCtx, cancel := context.WithTimeout(r.Context(), time.Second)
@@ -119,14 +119,14 @@ func run(logger *slog.Logger) error {
 			if cfg.FailOpen {
 				w.Header().Set("X-Redis-Status", "unreachable")
 				w.WriteHeader(http.StatusOK)
-				fmt.Fprintln(w, "degraded")
+				_, _ = fmt.Fprintln(w, "degraded")
 				return
 			}
 			http.Error(w, "redis unreachable", http.StatusServiceUnavailable)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ready")
+		_, _ = fmt.Fprintln(w, "ready")
 	})
 	mux.Handle("/", rl.Wrap(observed))
 

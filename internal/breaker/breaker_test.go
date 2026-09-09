@@ -114,8 +114,13 @@ func TestHalfOpenAdmitsLimitedProbes(t *testing.T) {
 	b.Failure()
 	clock.Advance(2 * time.Second)
 
-	if !b.Allow() || !b.Allow() {
-		t.Fatal("breaker refused its allotted probes")
+	// Checked one at a time: `!b.Allow() || !b.Allow()` short-circuits, so the
+	// second probe would never be attempted if the first were refused.
+	if !b.Allow() {
+		t.Fatal("breaker refused its first probe")
+	}
+	if !b.Allow() {
+		t.Fatal("breaker refused its second probe")
 	}
 	if b.Allow() {
 		t.Fatal("breaker admitted a third probe when only two were allowed")
@@ -188,5 +193,13 @@ func TestConcurrentUse(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	// The assertion is the absence of a race; run with -race.
+
+	// The real assertion is the absence of a data race; run with -race. This
+	// also confirms the breaker landed in a coherent state rather than some
+	// torn combination of fields.
+	switch got := b.State(); got {
+	case breaker.StateClosed, breaker.StateOpen, breaker.StateHalfOpen:
+	default:
+		t.Fatalf("State = %v, want one of closed/open/half-open", got)
+	}
 }
