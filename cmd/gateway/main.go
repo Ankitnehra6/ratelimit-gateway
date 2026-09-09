@@ -153,6 +153,9 @@ func run(logger *slog.Logger) error {
 		resolver,
 		brk,
 		func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
+		func(tier, algorithm, decision string) {
+			metrics.Decisions.WithLabelValues(tier, algorithm, decision, middleware.SourceSimulator).Inc()
+		},
 	)
 
 	adminMux := http.NewServeMux()

@@ -115,7 +115,7 @@ func (rl *RateLimit) Wrap(next http.Handler) http.Handler {
 		writeRateLimitHeaders(w, decision)
 
 		if !decision.Allowed {
-			rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "throttled").Inc()
+			rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "throttled", SourceProxy).Inc()
 			retryAfter := int(decision.RetryAfter.Round(time.Second) / time.Second)
 			if retryAfter < 1 {
 				retryAfter = 1
@@ -125,14 +125,14 @@ func (rl *RateLimit) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
-		rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "allowed").Inc()
+		rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "allowed", SourceProxy).Inc()
 		next.ServeHTTP(w, r)
 	})
 }
 
 // applyFailurePolicy handles a request whose quota could not be evaluated.
 func (rl *RateLimit) applyFailurePolicy(w http.ResponseWriter, r *http.Request, next http.Handler, t tenant.Tenant) {
-	rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "degraded").Inc()
+	rl.metrics.Decisions.WithLabelValues(t.Tier.Name, rl.limiter.Name(), "degraded", SourceProxy).Inc()
 	if rl.failOpen {
 		// Signal the degradation so callers and dashboards can see that the
 		// quota was not actually enforced for this request.

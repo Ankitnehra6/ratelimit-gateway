@@ -67,8 +67,8 @@ func newHandler(t *testing.T, l limiter.Limiter, redisErr error) http.Handler {
 	metrics := middleware.NewMetrics(registry)
 	// Seed a few observations so the stats endpoint has histograms and
 	// counters to aggregate.
-	metrics.Decisions.WithLabelValues("free", "counting", "allowed").Add(7)
-	metrics.Decisions.WithLabelValues("free", "counting", "throttled").Add(3)
+	metrics.Decisions.WithLabelValues("free", "counting", "allowed", middleware.SourceProxy).Add(7)
+	metrics.Decisions.WithLabelValues("free", "counting", "throttled", middleware.SourceProxy).Add(3)
 	metrics.LimiterLatency.WithLabelValues("counting").Observe(0.0004)
 	metrics.LimiterLatency.WithLabelValues("counting").Observe(0.002)
 
@@ -79,6 +79,9 @@ func newHandler(t *testing.T, l limiter.Limiter, redisErr error) http.Handler {
 		resolver,
 		breaker.New(5, time.Second),
 		func(context.Context) error { return redisErr },
+		func(tier, alg, decision string) {
+			metrics.Decisions.WithLabelValues(tier, alg, decision, middleware.SourceSimulator).Inc()
+		},
 	)
 	return h.Routes()
 }
@@ -214,6 +217,52 @@ func TestSimulateShowsWhereTheQuotaRunsOut(t *testing.T) {
 	}
 	if !body.Results[9].Allowed || body.Results[10].Allowed {
 		t.Error("the boundary is in the wrong place: #10 should be the last allowed")
+	}
+}
+
+// A burst fired from the dashboard must move the numbers the dashboard shows.
+// Without this the simulator renders its own result grid while the throughput
+// chart and the tier cards stay stubbornly at zero, which reads as broken.
+func TestSimulatedTrafficAppearsInStats(t *testing.T) {
+	h := newHandler(t, &countingLimiter{capacity: 4}, nil)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/simulate",
+		strings.NewReader(`{"tier":"pro","count":6}`)))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/stats", nil))
+
+	var body struct {
+		Allowed   float64
+		Throttled float64
+		Tiers     []struct {
+			Name      string
+			Allowed   float64
+			Throttled float64
+		}
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	// The fixture seeds 7 allowed / 3 throttled on "free" before the burst
+	// adds 4 allowed / 2 throttled on "pro".
+	if body.Allowed != 11 || body.Throttled != 5 {
+		t.Errorf("totals = %v allowed / %v throttled, want 11/5", body.Allowed, body.Throttled)
+	}
+
+	var pro struct {
+		Name      string
+		Allowed   float64
+		Throttled float64
+	}
+	for _, tier := range body.Tiers {
+		if tier.Name == "pro" {
+			pro = tier
+		}
+	}
+	if pro.Allowed != 4 || pro.Throttled != 2 {
+		t.Errorf("pro tier = %v allowed / %v throttled, want 4/2", pro.Allowed, pro.Throttled)
 	}
 }
 

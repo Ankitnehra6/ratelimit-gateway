@@ -39,6 +39,12 @@ type Info struct {
 	FailOpen  bool   `json:"failOpen"`
 }
 
+// DecisionRecorder records a simulated rate limit decision so that simulator
+// traffic shows up in the dashboard's chart and tier counters alongside real
+// traffic. Passing a recorder rather than the metrics type itself keeps this
+// package independent of the middleware.
+type DecisionRecorder func(tier, algorithm, decision string)
+
 // Handler serves the dashboard and its JSON API.
 type Handler struct {
 	info      Info
@@ -47,10 +53,13 @@ type Handler struct {
 	resolver  *tenant.Resolver
 	breaker   *breaker.Breaker
 	redisPing func(context.Context) error
+	record    DecisionRecorder
 	started   time.Time
 }
 
 // New builds a dashboard handler.
+//
+// record may be nil, in which case simulated decisions are not counted.
 func New(
 	info Info,
 	gatherer prometheus.Gatherer,
@@ -58,7 +67,11 @@ func New(
 	resolver *tenant.Resolver,
 	b *breaker.Breaker,
 	redisPing func(context.Context) error,
+	record DecisionRecorder,
 ) *Handler {
+	if record == nil {
+		record = func(string, string, string) {}
+	}
 	return &Handler{
 		info:      info,
 		gatherer:  gatherer,
@@ -66,6 +79,7 @@ func New(
 		resolver:  resolver,
 		breaker:   b,
 		redisPing: redisPing,
+		record:    record,
 		started:   time.Now(),
 	}
 }
@@ -267,11 +281,17 @@ func (h *Handler) handleSimulate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		outcome := "throttled"
 		if decision.Allowed {
+			outcome = "allowed"
 			resp.Allowed++
 		} else {
 			resp.Throttled++
 		}
+		// Counted under the simulator source, so the dashboard's chart and tier
+		// cards respond to a burst while production queries can still filter
+		// operator activity out.
+		h.record(tier.Name, h.limiter.Name(), outcome)
 
 		resp.Results = append(resp.Results, simulateResult{
 			Index:        i + 1,

@@ -24,15 +24,29 @@ type Metrics struct {
 	UpstreamLatency *prometheus.HistogramVec
 }
 
+// Traffic sources recorded in the Decisions counter's source label.
+const (
+	// SourceProxy is a decision made for a real request passing through the
+	// gateway.
+	SourceProxy = "proxy"
+	// SourceSimulator is a decision driven by the dashboard's burst simulator.
+	SourceSimulator = "simulator"
+)
+
 // NewMetrics registers the gateway's collectors on reg.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	m := &Metrics{
+		// The source label separates real proxied traffic from decisions driven
+		// by the operator dashboard's simulator. It has exactly two values, so
+		// it costs nothing in cardinality, and it lets a production query
+		// exclude operator activity with {source="proxy"} rather than having
+		// the two silently mixed.
 		Decisions: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gateway_rate_limit_decisions_total",
-				Help: "Rate limit decisions by tier, algorithm and outcome.",
+				Help: "Rate limit decisions by tier, algorithm, outcome and traffic source.",
 			},
-			[]string{"tier", "algorithm", "decision"},
+			[]string{"tier", "algorithm", "decision", "source"},
 		),
 		LimiterLatency: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{

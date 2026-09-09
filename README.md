@@ -134,6 +134,17 @@ firewall off as `/metrics` and is not reachable by API callers. The simulator dr
 dedicated `dashboard-sim:` key, so it never consumes a real tenant's quota, and it caps
 the burst size — an operator tool should not become an accidental load generator.
 
+Simulated decisions are counted under `source="simulator"` on
+`gateway_rate_limit_decisions_total`, so a burst moves the chart and tier cards
+immediately while production queries can still exclude operator activity:
+
+```promql
+sum by (tier) (rate(gateway_rate_limit_decisions_total{source="proxy"}[5m]))
+```
+
+The label has exactly two values, so it costs nothing in cardinality — the concern
+[ADR-0004](docs/adr/0004-metrics-cardinality.md) is otherwise strict about.
+
 ---
 
 ## Results

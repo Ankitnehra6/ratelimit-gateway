@@ -202,19 +202,10 @@ function drawChart() {
 
 /* --- polling ---------------------------------------------------------------- */
 
-function ratesFrom(stats) {
-  if (!state.previous) return { allowed: 0, throttled: 0 };
-
-  const elapsed = stats.uptimeSeconds - state.previous.uptimeSeconds;
-  if (elapsed <= 0) return { allowed: 0, throttled: 0 };
-
-  // Counters only ever increase, but a gateway restart resets them to zero.
-  // Clamping at zero keeps a restart from drawing a huge negative spike.
-  return {
-    allowed: Math.max(0, stats.allowed - state.previous.allowed) / elapsed,
-    throttled: Math.max(0, stats.throttled - state.previous.throttled) / elapsed,
-  };
-}
+// Shortest interval accepted as a rate sample. A burst triggers an immediate
+// refresh, which can land milliseconds after the previous poll; dividing a
+// 50-request delta by 0.05s would draw a 1000/s spike that never happened.
+const MIN_SAMPLE_SECONDS = 0.5;
 
 async function poll() {
   try {
@@ -224,12 +215,30 @@ async function poll() {
 
     state.failures = 0;
 
-    const rates = ratesFrom(stats);
-    if (state.previous) {
-      state.history.push(rates);
-      if (state.history.length > HISTORY) state.history.shift();
+    let rates = { allowed: 0, throttled: 0 };
+
+    if (!state.previous) {
+      // First sample: no baseline to measure against yet.
+      state.previous = stats;
+    } else {
+      const elapsed = stats.uptimeSeconds - state.previous.uptimeSeconds;
+
+      if (elapsed >= MIN_SAMPLE_SECONDS) {
+        // Counters only ever increase, but a gateway restart resets them to
+        // zero. Clamping keeps a restart from drawing a negative spike.
+        rates = {
+          allowed: Math.max(0, stats.allowed - state.previous.allowed) / elapsed,
+          throttled: Math.max(0, stats.throttled - state.previous.throttled) / elapsed,
+        };
+        state.history.push(rates);
+        if (state.history.length > HISTORY) state.history.shift();
+        state.previous = stats;
+      } else {
+        // Too soon. Keep the old baseline so the next tick measures a full
+        // interval, and reuse the last drawn rate instead of inventing one.
+        rates = state.history[state.history.length - 1] || rates;
+      }
     }
-    state.previous = stats;
 
     renderHeader(stats);
     renderKpis(stats, rates);
