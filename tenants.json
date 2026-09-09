@@ -1,0 +1,39 @@
+{
+  "tiers": {
+    "anonymous": {
+      "limit": 20,
+      "window": "1s",
+      "burst": 20
+    },
+    "free": {
+      "limit": 100,
+      "window": "1s",
+      "burst": 150
+    },
+    "pro": {
+      "limit": 5000,
+      "window": "1s",
+      "burst": 10000
+    },
+    "internal": {
+      "limit": 100000,
+      "window": "1s",
+      "burst": 200000
+    }
+  },
+  "keys": {
+    "demo-free-key": {
+      "tenant_id": "demo-free",
+      "tier": "free"
+    },
+    "demo-pro-key": {
+      "tenant_id": "demo-pro",
+      "tier": "pro"
+    },
+    "demo-internal-key": {
+      "tenant_id": "demo-internal",
+      "tier": "internal"
+    }
+  },
+  "anonymous_tier": "anonymous"
+}

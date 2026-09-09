@@ -1,0 +1,10 @@
+.git
+.github
+bin
+results
+coverage.out
+docs
+scripts
+deploy
+*.md
+.DS_Store

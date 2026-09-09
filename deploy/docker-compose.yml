@@ -1,0 +1,63 @@
+# Full local stack: gateway, Redis, a stand-in upstream, and Prometheus.
+#
+#   docker compose -f deploy/docker-compose.yml up --build
+#
+# Gateway    http://localhost:8080
+# Metrics    http://localhost:9090/metrics
+# Prometheus http://localhost:9091
+#
+# Every published port is overridable, because 8080 and 9090 are popular and
+# something else on a developer's machine is often already using them. Copy
+# deploy/.env.example to deploy/.env and change the values there.
+
+name: ratelimit-gateway
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  # Stand-in for a real backend. Echoes requests so proxying is verifiable.
+  upstream:
+    image: mccutchen/go-httpbin:v2.15.0
+    ports:
+      - "${UPSTREAM_PORT:-8081}:8080"
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+      - "${METRICS_PORT:-9090}:9090"
+    environment:
+      GATEWAY_LISTEN_ADDR: ":8080"
+      GATEWAY_METRICS_ADDR: ":9090"
+      GATEWAY_UPSTREAM_URL: "http://upstream:8080"
+      GATEWAY_TENANTS_PATH: "/tenants.json"
+      GATEWAY_ALGORITHM: "${GATEWAY_ALGORITHM:-token_bucket}"
+      GATEWAY_FAIL_OPEN: "true"
+      GATEWAY_LIMITER_TIMEOUT: "50ms"
+      REDIS_ADDR: "redis:6379"
+      REDIS_POOL_SIZE: "256"
+    depends_on:
+      redis:
+        condition: service_healthy
+      upstream:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - gateway

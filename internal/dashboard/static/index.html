@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rate Limiter Gateway</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚦</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>Rate Limiter Gateway</h1>
+      <p class="brand-sub" id="upstream">&mdash;</p>
+    </div>
+  </div>
+
+  <div class="topbar-meta">
+    <div class="pill" id="algorithm-pill">
+      <span class="pill-label">Algorithm</span>
+      <span class="pill-value" id="algorithm">&mdash;</span>
+    </div>
+    <div class="pill" id="breaker-pill">
+      <span class="pill-label">Breaker</span>
+      <span class="pill-value" id="breaker">&mdash;</span>
+    </div>
+    <div class="status" id="status">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="status-text">connecting</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Key figures -->
+  <section class="kpi-grid" aria-label="Key metrics">
+    <article class="card kpi">
+      <p class="kpi-label">Allowed</p>
+      <p class="kpi-value" id="kpi-allowed">0</p>
+      <p class="kpi-foot"><span id="kpi-allowed-rate">0</span> /sec</p>
+    </article>
+
+    <article class="card kpi kpi-warn">
+      <p class="kpi-label">Throttled</p>
+      <p class="kpi-value" id="kpi-throttled">0</p>
+      <p class="kpi-foot"><span id="kpi-throttled-rate">0</span> /sec</p>
+    </article>
+
+    <article class="card kpi">
+      <p class="kpi-label">Limiter p99</p>
+      <p class="kpi-value" id="kpi-p99">&mdash;</p>
+      <p class="kpi-foot">p50 <span id="kpi-p50">&mdash;</span> &middot; p95 <span id="kpi-p95">&mdash;</span></p>
+    </article>
+
+    <article class="card kpi" id="degraded-card">
+      <p class="kpi-label">Degraded</p>
+      <p class="kpi-value" id="kpi-degraded">0</p>
+      <p class="kpi-foot">quota not enforced</p>
+    </article>
+  </section>
+
+  <!-- Live throughput -->
+  <section class="card chart-card">
+    <div class="card-head">
+      <h2>Throughput</h2>
+      <div class="legend">
+        <span class="legend-item"><i class="swatch swatch-allowed"></i>allowed</span>
+        <span class="legend-item"><i class="swatch swatch-throttled"></i>throttled</span>
+        <span class="legend-scale" id="chart-peak">peak 0/s</span>
+      </div>
+    </div>
+    <canvas id="chart" height="180" aria-label="Requests per second over the last minute"></canvas>
+    <p class="chart-empty" id="chart-empty">Waiting for traffic &mdash; send a burst below to see the limiter work.</p>
+  </section>
+
+  <div class="split">
+
+    <!-- Tier quotas -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Tiers</h2>
+        <span class="hint">configured in <code>tenants.json</code></span>
+      </div>
+      <div class="tier-list" id="tier-list">
+        <p class="empty">Loading tiers&hellip;</p>
+      </div>
+    </section>
+
+    <!-- Interactive simulator -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Burst simulator</h2>
+        <span class="hint">drives the real limiter</span>
+      </div>
+
+      <form class="sim-form" id="sim-form">
+        <div class="field">
+          <label for="sim-tier">Tier</label>
+          <select id="sim-tier"></select>
+        </div>
+
+        <div class="field">
+          <label for="sim-count">Requests <output id="sim-count-out">50</output></label>
+          <input type="range" id="sim-count" min="1" max="200" value="50" step="1">
+        </div>
+
+        <button type="submit" class="btn" id="sim-run">Send burst</button>
+      </form>
+
+      <div class="sim-summary" id="sim-summary" hidden>
+        <div class="sim-stat">
+          <span class="sim-stat-value" id="sim-allowed">0</span>
+          <span class="sim-stat-label">allowed</span>
+        </div>
+        <div class="sim-stat">
+          <span class="sim-stat-value sim-stat-warn" id="sim-throttled">0</span>
+          <span class="sim-stat-label">throttled</span>
+        </div>
+        <div class="sim-stat">
+          <span class="sim-stat-value" id="sim-duration">0</span>
+          <span class="sim-stat-label">ms</span>
+        </div>
+      </div>
+
+      <div class="dots" id="sim-dots" aria-live="polite"></div>
+
+      <p class="sim-note" id="sim-note">
+        Each square is one request through the limiter, in order. Fire more than the
+        tier's burst and watch where it starts rejecting.
+      </p>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <span>uptime <strong id="uptime">&mdash;</strong></span>
+    <span>redis <strong id="redis-addr">&mdash;</strong></span>
+    <span>fail policy <strong id="fail-policy">&mdash;</strong></span>
+    <span>limiter errors <strong id="errors">0</strong></span>
+  </footer>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

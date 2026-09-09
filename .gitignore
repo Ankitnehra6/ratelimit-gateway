@@ -1,0 +1,23 @@
+# Build output
+bin/
+/gateway
+
+# Test and profiling artefacts
+coverage.out
+coverage.html
+*.test
+*.prof
+
+# Load test results
+results/
+
+# Local overrides and secrets
+.env
+.env.*
+!.env.example
+tenants.local.json
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
