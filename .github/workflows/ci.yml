@@ -71,7 +71,10 @@ jobs:
         with:
           go-version: '1.25'
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      # v8 is the first release that ships golangci-lint v2, which this repo's
+      # .golangci.yml targets. v6 installs a v1 binary built with an older Go
+      # than the module's go directive and refuses to load the config at all.
+      - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
