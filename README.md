@@ -80,10 +80,15 @@ make down
 
 | What | Where |
 |---|---|
-| Proxy | <http://localhost:8080> |
-| **Dashboard** | **<http://localhost:9090>** |
+| Proxy | <http://localhost:8080> — forwards to the upstream |
+| **Caller console** | **<http://localhost:8080/__gateway/>** — watch your own quota drain |
+| **Operator dashboard** | **<http://localhost:9090>** — fleet-wide view |
 | Metrics | <http://localhost:9090/metrics> |
 | Prometheus | <http://localhost:9091> |
+
+Hitting <http://localhost:8080> directly shows the *upstream* (go-httpbin), because
+that is what the gateway proxies to. That is the gateway working, not a missing page —
+the two UIs live at the paths above.
 
 Ports 8080/9090 are commonly taken. If they are on your machine:
 
@@ -114,8 +119,24 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ## Dashboard
 
-The gateway serves an operator UI on the admin port, embedded in the binary with
-`go:embed` — no separate frontend build, no CDN, no runtime dependencies.
+Two UIs, embedded in the binary with `go:embed` — no separate frontend build, no CDN,
+no runtime dependencies. They answer different questions.
+
+### Caller console — `/__gateway/` on the proxy port
+
+The view an API consumer gets: **your** quota, right now. Pick an identity from the
+demo keys (or paste your own), fire requests, and watch the meter drain and the
+throttle arrive. Every number comes from the `X-RateLimit-*` headers on real proxied
+responses, so the page needs no privileged endpoint — it sees exactly what any client
+of the gateway sees.
+
+It is served on the proxy listener but *outside* the rate limiter: a page whose purpose
+is to show you your quota must not consume it, and throttling the console would lock you
+out precisely when you want to look at it. The cost is that the prefix shadows that path
+on the upstream, so it is deliberately obscure, configurable with
+`GATEWAY_CONSOLE_PATH`, and disabled entirely by setting that to the empty string.
+
+### Operator dashboard — the admin port
 
 ![Rate limiter dashboard showing live throughput, per-tier quotas and the burst simulator](docs/images/dashboard.png)
 
@@ -282,6 +303,9 @@ All configuration is environment variables; tenants and tiers live in a JSON fil
 | `GATEWAY_BREAKER_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
 | `GATEWAY_BREAKER_COOLDOWN` | `5s` | Wait before probing recovery |
 | `GATEWAY_TRUST_FORWARDED_FOR` | `false` | Believe `X-Forwarded-For` for client IP |
+| `GATEWAY_CONSOLE_PATH` | `/__gateway/` | Caller console prefix; empty disables it |
+| `GATEWAY_CONSOLE_PROBE_PATH` | `/get` | Upstream path the console sends test requests to |
+| `GATEWAY_PUBLIC_DASHBOARD_PORT` | admin port | Externally published admin port, for the console's dashboard link |
 | `REDIS_ADDR` | `localhost:6379` | Redis address |
 | `REDIS_POOL_SIZE` | `128` | Connection pool size |
 

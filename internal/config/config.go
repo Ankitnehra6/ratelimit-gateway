@@ -3,9 +3,11 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/limiter"
@@ -27,6 +29,18 @@ type Config struct {
 	BreakerCooldown time.Duration
 	TrustXFF        bool
 	ShutdownTimeout time.Duration
+
+	// ConsolePath is the prefix on the proxy listener where the caller-facing
+	// console is served. It necessarily shadows that prefix on the upstream,
+	// so it is deliberately obscure and can be disabled by setting it empty.
+	ConsolePath string
+	// ConsoleProbePath is the upstream path the console sends test requests to.
+	ConsoleProbePath string
+	// PublicDashboardPort is the externally reachable port of the admin
+	// listener, used only to build the console's link to the dashboard. It is
+	// separate from MetricsAddr because a container's internal port is
+	// routinely published on a different one.
+	PublicDashboardPort string
 }
 
 // Load reads configuration from the environment, applying defaults.
@@ -38,6 +52,23 @@ func Load() (Config, error) {
 		RedisPassword:   os.Getenv("REDIS_PASSWORD"),
 		TenantsPath:     env("GATEWAY_TENANTS_PATH", "tenants.json"),
 		ShutdownTimeout: 15 * time.Second,
+
+		ConsolePath:      env("GATEWAY_CONSOLE_PATH", "/__gateway/"),
+		ConsoleProbePath: env("GATEWAY_CONSOLE_PROBE_PATH", "/get"),
+	}
+
+	// An explicitly empty GATEWAY_CONSOLE_PATH disables the console; anything
+	// else must be a rooted subtree pattern for http.ServeMux.
+	if raw, set := os.LookupEnv("GATEWAY_CONSOLE_PATH"); set && raw == "" {
+		cfg.ConsolePath = ""
+	}
+	if cfg.ConsolePath != "" {
+		if !strings.HasPrefix(cfg.ConsolePath, "/") {
+			cfg.ConsolePath = "/" + cfg.ConsolePath
+		}
+		if !strings.HasSuffix(cfg.ConsolePath, "/") {
+			cfg.ConsolePath += "/"
+		}
 	}
 
 	rawUpstream := env("GATEWAY_UPSTREAM_URL", "http://localhost:8081")
@@ -77,7 +108,20 @@ func Load() (Config, error) {
 		return cfg, err
 	}
 
+	// Default the console's dashboard link to the admin listener's own port,
+	// which is correct whenever ports are not remapped in front of the process.
+	cfg.PublicDashboardPort = env("GATEWAY_PUBLIC_DASHBOARD_PORT", portOf(cfg.MetricsAddr))
+
 	return cfg, nil
+}
+
+// portOf extracts the port from a listen address such as ":9090" or
+// "127.0.0.1:9090".
+func portOf(addr string) string {
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		return port
+	}
+	return strings.TrimPrefix(addr, ":")
 }
 
 func env(key, fallback string) string {

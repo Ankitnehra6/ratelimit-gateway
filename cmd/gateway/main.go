@@ -22,6 +22,7 @@ import (
 
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/breaker"
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/config"
+	"github.com/Ankitnehra6/ratelimit-gateway/internal/console"
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/dashboard"
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/limiter"
 	"github.com/Ankitnehra6/ratelimit-gateway/internal/middleware"
@@ -128,6 +129,27 @@ func run(logger *slog.Logger) error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "ready")
 	})
+	// The caller-facing console, if enabled. It is registered on the mux
+	// directly rather than behind rl.Wrap: a page whose whole purpose is to
+	// show you your quota must not consume it, and throttling the console would
+	// lock you out exactly when you most want to look at it.
+	//
+	// The trade-off is that this prefix is shadowed on the upstream. It is
+	// deliberately obscure, and GATEWAY_CONSOLE_PATH="" turns it off.
+	if cfg.ConsolePath != "" {
+		con := console.New(console.Config{
+			BasePath:      cfg.ConsolePath,
+			ProbePath:     cfg.ConsoleProbePath,
+			DashboardPort: cfg.PublicDashboardPort,
+			Algorithm:     string(cfg.Algorithm),
+		})
+		mux.Handle(cfg.ConsolePath, con.Handler())
+		logger.Info("console enabled",
+			slog.String("path", cfg.ConsolePath),
+			slog.String("shadows_upstream_prefix", cfg.ConsolePath),
+		)
+	}
+
 	mux.Handle("/", rl.Wrap(observed))
 
 	server := &http.Server{

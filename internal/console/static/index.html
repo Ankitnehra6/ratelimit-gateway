@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gateway Console</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚦</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>Gateway Console</h1>
+      <p class="brand-sub">You are behind the rate limiter. Everything below is a real proxied request.</p>
+    </div>
+  </div>
+  <a class="dash-link" id="dashboard-link" href="#" target="_blank" rel="noopener">
+    Operator dashboard →
+  </a>
+</header>
+
+<main>
+
+  <!-- Quota meter -->
+  <section class="card meter-card">
+    <div class="meter-head">
+      <div>
+        <p class="eyebrow">Your quota</p>
+        <p class="tier-line">
+          <span id="tier-badge" class="tier-badge">anonymous</span>
+          <span class="tier-detail" id="tier-detail">send a request to discover your limit</span>
+        </p>
+      </div>
+      <div class="meter-figure">
+        <span class="meter-remaining" id="meter-remaining">—</span>
+        <span class="meter-of">of <span id="meter-limit">—</span> left</span>
+      </div>
+    </div>
+
+    <div class="meter-track" role="progressbar" aria-labelledby="meter-remaining">
+      <div class="meter-fill" id="meter-fill"></div>
+    </div>
+
+    <p class="meter-foot">
+      <span id="reset-text">—</span>
+      <span class="meter-status" id="last-status"></span>
+    </p>
+  </section>
+
+  <div class="split">
+
+    <!-- Controls -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Send requests</h2>
+        <span class="hint" id="probe-label">→ /get</span>
+      </div>
+
+      <div class="field">
+        <label for="api-key">Identity</label>
+        <select id="api-key">
+          <option value="">No key — anonymous, limited by IP</option>
+          <option value="demo-free-key">demo-free-key — free tier</option>
+          <option value="demo-pro-key">demo-pro-key — pro tier</option>
+          <option value="demo-internal-key">demo-internal-key — internal tier</option>
+          <option value="__custom">Custom key…</option>
+        </select>
+      </div>
+
+      <div class="field" id="custom-key-field" hidden>
+        <label for="custom-key">Custom key</label>
+        <input type="text" id="custom-key" placeholder="sent as X-API-Key" autocomplete="off">
+      </div>
+
+      <div class="button-row">
+        <button class="btn" data-send="1">Send 1</button>
+        <button class="btn" data-send="10">Send 10</button>
+        <button class="btn" data-send="50">Send 50</button>
+        <button class="btn btn-toggle" id="flood">Flood</button>
+      </div>
+
+      <p class="note" id="hint-text">
+        The anonymous tier allows 20 requests a second. Send 50 and watch the
+        last thirty come back <code>429</code>, then wait a moment and try again
+        as the bucket refills.
+      </p>
+
+      <div class="dots" id="dots" aria-live="polite"></div>
+    </section>
+
+    <!-- Live log -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Response log</h2>
+        <button class="link-btn" id="clear-log">clear</button>
+      </div>
+      <div class="log" id="log">
+        <p class="empty">No requests yet.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <span>algorithm <strong id="algorithm">—</strong></span>
+    <span>sent <strong id="total-sent">0</strong></span>
+    <span>allowed <strong class="ok" id="total-allowed">0</strong></span>
+    <span>throttled <strong class="warn" id="total-throttled">0</strong></span>
+  </footer>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
